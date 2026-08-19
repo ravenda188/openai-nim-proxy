@@ -280,9 +280,28 @@ app.post('/v1/chat/completions', async (req, res) => {
 
     console.error('Proxy error:', errorDetail);
     
+    // Always resolve to a plain string - never let a raw object leak into the message field,
+    // otherwise clients display it as the literal text "[object Object]".
+    let errorMessage;
+    if (typeof errorDetail === 'string') {
+      errorMessage = errorDetail;
+    } else if (errorDetail?.error?.message) {
+      errorMessage = errorDetail.error.message;
+    } else if (errorDetail?.message) {
+      errorMessage = errorDetail.message;
+    } else if (errorDetail) {
+      try {
+        errorMessage = JSON.stringify(errorDetail);
+      } catch {
+        errorMessage = 'Internal server error';
+      }
+    } else {
+      errorMessage = 'Internal server error';
+    }
+
     res.status(error.response?.status || 500).json({
       error: {
-        message: (errorDetail && errorDetail.error && errorDetail.error.message) || errorDetail || 'Internal server error',
+        message: errorMessage,
         type: 'invalid_request_error',
         code: error.response?.status || 500
       }
