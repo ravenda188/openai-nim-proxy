@@ -117,6 +117,8 @@ app.post('/v1/chat/completions', async (req, res) => {
       messages: messages,
       temperature: temperature || 0.75,
       max_tokens: max_tokens || MODEL_MAX_TOKENS[nimModel] || DEFAULT_MAX_TOKENS,
+      // NOTE: NIM requires chat_template_kwargs at the ROOT of the payload (not nested under extra_body),
+      // and DeepSeek V4 reasoning models specifically require BOTH thinking + enable_thinking to be set.
       chat_template_kwargs: needsThinking ? { thinking: true, enable_thinking: true } : undefined,
       stream: stream || false
     };
@@ -128,10 +130,11 @@ app.post('/v1/chat/completions', async (req, res) => {
         'Content-Type': 'application/json'
       },
       responseType: stream ? 'stream' : 'json',
-      timeout: 300000
+      timeout: 600000 // 300s (5min) - DeepSeek V4 Pro / large models in thinking mode can take a while to produce their first token
     });
     
     if (stream) {
+      // Handle streaming response with reasoning
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
@@ -192,6 +195,8 @@ app.post('/v1/chat/completions', async (req, res) => {
               }
               res.write(`data: ${JSON.stringify(data)}\n\n`);
             } catch (e) {
+              // Don't forward broken/unparsable chunks - passing malformed JSON downstream
+              // makes Chub's own parser crash trying to read .delta off it. Skip and log instead.
               console.error('Skipped unparsable NIM chunk:', line.slice(0, 200));
             }
           }
@@ -199,6 +204,8 @@ app.post('/v1/chat/completions', async (req, res) => {
       });
       
       response.data.on('end', () => {
+        // Flush any leftover partial line still sitting in the buffer -
+        // without this, the final chunk (sometimes the last content delta or [DONE]) gets silently dropped.
         if (buffer.trim()) {
           if (buffer.startsWith('data: ')) {
             res.write(buffer + '\n\n');
@@ -213,6 +220,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         res.end();
       });
     } else {
+      // Transform NIM response to OpenAI format with reasoning
       const openaiResponse = {
         id: `chatcmpl-${Date.now()}`,
         object: 'chat.completion',
@@ -245,50 +253,12 @@ app.post('/v1/chat/completions', async (req, res) => {
     }
     
   } catch (error) {
-    let errorDetail = error.message;
-    if (error.response?.data && typeof error.response.data.on === 'function') {
-      try {
-        errorDetail = await new Promise((resolve) => {
-          let raw = '';
-          error.response.data.on('data', (chunk) => { raw += chunk.toString(); });
-          error.response.data.on('end', () => {
-            try {
-              resolve(JSON.parse(raw));
-            } catch {
-              resolve(raw || error.message);
-            }
-          });
-          error.response.data.on('error', () => resolve(error.message));
-        });
-      } catch {
-        errorDetail = error.message;
-      }
-    } else if (error.response?.data) {
-      errorDetail = error.response.data;
-    }
-
-    console.error('Proxy error:', errorDetail);
+    // Log the ACTUAL error NIM returned, not just the generic axios message
+    console.error('Proxy error:', error.response?.data || error.message);
     
-    let errorMessage;
-    if (typeof errorDetail === 'string') {
-      errorMessage = errorDetail;
-    } else if (errorDetail?.error?.message) {
-      errorMessage = errorDetail.error.message;
-    } else if (errorDetail?.message) {
-      errorMessage = errorDetail.message;
-    } else if (errorDetail) {
-      try {
-        errorMessage = JSON.stringify(errorDetail);
-      } catch {
-        errorMessage = 'Internal server error';
-      }
-    } else {
-      errorMessage = 'Internal server error';
-    }
-
     res.status(error.response?.status || 500).json({
       error: {
-        message: errorMessage,
+        message: error.response?.data?.error?.message || error.message || 'Internal server error',
         type: 'invalid_request_error',
         code: error.response?.status || 500
       }
