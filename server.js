@@ -47,6 +47,25 @@ const MODEL_MAX_TOKENS = {
   'z-ai/glm-5.2': 64000
 };
 
+// Simple retry helper for 429s - waits and retries instead of failing immediately.
+// NIM's free tier rate limits reset quickly for short bursts, so a couple retries often succeeds.
+async function postWithRetry(url, data, config, maxRetries = 3) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await axios.post(url, data, config);
+    } catch (err) {
+      const status = err.response?.status;
+      if (status === 429 && attempt < maxRetries) {
+        const waitMs = 2000 * (attempt + 1); // 2s, 4s, 6s backoff
+        console.log(`[RETRY] Got 429, retrying in ${waitMs}ms (attempt ${attempt + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, waitMs));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 
@@ -117,21 +136,24 @@ app.post('/v1/chat/completions', async (req, res) => {
       messages: messages,
       temperature: temperature || 0.75,
       max_tokens: max_tokens || MODEL_MAX_TOKENS[nimModel] || DEFAULT_MAX_TOKENS,
+      // NOTE: NIM requires chat_template_kwargs at the ROOT of the payload (not nested under extra_body),
+      // and DeepSeek V4 reasoning models specifically require BOTH thinking + enable_thinking to be set.
       chat_template_kwargs: needsThinking ? { thinking: true, enable_thinking: true } : undefined,
       stream: stream || false
     };
     
-    // Make request to NVIDIA NIM API
-    const response = await axios.post(`${NIM_API_BASE}/chat/completions`, nimRequest, {
+    // Make request to NVIDIA NIM API (with automatic retry on 429 rate limits)
+    const response = await postWithRetry(`${NIM_API_BASE}/chat/completions`, nimRequest, {
       headers: {
         'Authorization': `Bearer ${NIM_API_KEY}`,
         'Content-Type': 'application/json'
       },
       responseType: stream ? 'stream' : 'json',
-      timeout: 300000
+      timeout: 300000 // 300s (5min) - DeepSeek V4 Pro / large models in thinking mode can take a while to produce their first token
     });
     
     if (stream) {
+      // Handle streaming response with reasoning
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
@@ -192,6 +214,8 @@ app.post('/v1/chat/completions', async (req, res) => {
               }
               res.write(`data: ${JSON.stringify(data)}\n\n`);
             } catch (e) {
+              // Don't forward broken/unparsable chunks - passing malformed JSON downstream
+              // makes Chub's own parser crash trying to read .delta off it. Skip and log instead.
               console.error('Skipped unparsable NIM chunk:', line.slice(0, 200));
             }
           }
@@ -199,6 +223,8 @@ app.post('/v1/chat/completions', async (req, res) => {
       });
       
       response.data.on('end', () => {
+        // Flush any leftover partial line still sitting in the buffer -
+        // without this, the final chunk (sometimes the last content delta or [DONE]) gets silently dropped.
         if (buffer.trim()) {
           if (buffer.startsWith('data: ')) {
             res.write(buffer + '\n\n');
@@ -213,6 +239,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         res.end();
       });
     } else {
+      // Transform NIM response to OpenAI format with reasoning
       const openaiResponse = {
         id: `chatcmpl-${Date.now()}`,
         object: 'chat.completion',
@@ -245,6 +272,9 @@ app.post('/v1/chat/completions', async (req, res) => {
     }
     
   } catch (error) {
+    // If the request was made with responseType: 'stream', error.response.data is a raw
+    // unread stream, not parsed JSON - dumping it directly logs a massive internal object.
+    // Read it properly to get NIM's actual error message.
     let errorDetail = error.message;
     if (error.response?.data && typeof error.response.data.on === 'function') {
       try {
@@ -269,6 +299,8 @@ app.post('/v1/chat/completions', async (req, res) => {
 
     console.error('Proxy error:', errorDetail);
     
+    // Always resolve to a plain string - never let a raw object leak into the message field,
+    // otherwise clients display it as the literal text "[object Object]".
     let errorMessage;
     if (typeof errorDetail === 'string') {
       errorMessage = errorDetail;
