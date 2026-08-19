@@ -29,7 +29,7 @@ const MODEL_MAPPING = {
   'deepseek-v4-flash': 'deepseek-ai/deepseek-v4-flash',
   'deepseek-v4-pro': 'deepseek-ai/deepseek-v4-pro',
   'minimax-m3': 'minimaxai/minimax-m3',
-  'minimax-m2.7': 'minimaxai/minimax-m2.7',
+  'step-3.7-flash': 'stepfun-ai/step-3.7-flash',
   'glm-5.2': 'z-ai/glm-5.2'
 };
 
