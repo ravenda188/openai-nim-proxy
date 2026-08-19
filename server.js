@@ -130,7 +130,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         'Content-Type': 'application/json'
       },
       responseType: stream ? 'stream' : 'json',
-      timeout: 600000 // 300s (5min) - DeepSeek V4 Pro / large models in thinking mode can take a while to produce their first token
+      timeout: 900000 // 300s (5min) - DeepSeek V4 Pro / large models in thinking mode can take a while to produce their first token
     });
     
     if (stream) {
