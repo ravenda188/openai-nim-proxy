@@ -29,7 +29,7 @@ const MODEL_MAPPING = {
   'deepseek-v4-flash': 'deepseek-ai/deepseek-v4-flash',
   'deepseek-v4-pro': 'deepseek-ai/deepseek-v4-pro',
   'minimax-m3': 'minimaxai/minimax-m3',
-  'step-3.7-flash': 'stepfun-ai/step-3.7-flash',
+  'minimax-m2.7': 'minimaxai/minimax-m2.7',
   'glm-5.2': 'z-ai/glm-5.2'
 };
 
@@ -253,12 +253,36 @@ app.post('/v1/chat/completions', async (req, res) => {
     }
     
   } catch (error) {
-    // Log the ACTUAL error NIM returned, not just the generic axios message
-    console.error('Proxy error:', error.response?.data || error.message);
+    // If the request was made with responseType: 'stream', error.response.data is a raw
+    // unread stream, not parsed JSON - dumping it directly logs a massive internal object.
+    // Read it properly to get NIM's actual error message.
+    let errorDetail = error.message;
+    if (error.response?.data && typeof error.response.data.on === 'function') {
+      try {
+        errorDetail = await new Promise((resolve) => {
+          let raw = '';
+          error.response.data.on('data', (chunk) => { raw += chunk.toString(); });
+          error.response.data.on('end', () => {
+            try {
+              resolve(JSON.parse(raw));
+            } catch {
+              resolve(raw || error.message);
+            }
+          });
+          error.response.data.on('error', () => resolve(error.message));
+        });
+      } catch {
+        errorDetail = error.message;
+      }
+    } else if (error.response?.data) {
+      errorDetail = error.response.data;
+    }
+
+    console.error('Proxy error:', errorDetail);
     
     res.status(error.response?.status || 500).json({
       error: {
-        message: error.response?.data?.error?.message || error.message || 'Internal server error',
+        message: (errorDetail && errorDetail.error && errorDetail.error.message) || errorDetail || 'Internal server error',
         type: 'invalid_request_error',
         code: error.response?.status || 500
       }
