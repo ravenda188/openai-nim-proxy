@@ -26,10 +26,10 @@ const MODEL_MAPPING = {
   'gpt-4': 'qwen/qwen3-coder-480b-a35b-instruct',
   'gpt-oss-120b': 'openai/gpt-oss-120b',
   'kimi-k2.6': 'moonshotai/kimi-k2.6',
-  'deepseek-v4-flash': 'deepseek-ai/deepseek-v4-flash-0731',
+  'deepseek-v4-flash': 'deepseek-ai/deepseek-v4-flash',
   'deepseek-v4-pro': 'deepseek-ai/deepseek-v4-pro',
   'minimax-m3': 'minimaxai/minimax-m3',
-  'step-3.7-flash': 'stepfun-ai/step-3.7-flash',
+  'minimax-m2.7': 'minimaxai/minimax-m2.7',
   'glm-5.2': 'z-ai/glm-5.2'
 };
 
@@ -37,7 +37,7 @@ const MODEL_MAPPING = {
 // Add/remove entries here as you test which models need it - no more flipping a global switch.
 const THINKING_MODELS = new Set([
   'deepseek-ai/deepseek-v4-pro',
-  'deepseek-ai/deepseek-v4-flash-0731'
+  'deepseek-ai/deepseek-v4-flash'
 ]);
 
 // Per-model max_tokens fallback (used only when Chub doesn't send its own max_tokens).
@@ -149,7 +149,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         'Content-Type': 'application/json'
       },
       responseType: stream ? 'stream' : 'json',
-      timeout: 300000 // 300s (5min) - DeepSeek V4 Pro / large models in thinking mode can take a while to produce their first token
+      timeout: 600000 // 600s (10min) - DeepSeek V4 Pro / MiniMax M3 in thinking/heavy mode can take a while to fully respond
     });
     
     if (stream) {
