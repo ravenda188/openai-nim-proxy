@@ -26,7 +26,7 @@ const MODEL_MAPPING = {
   'gpt-4': 'qwen/qwen3-coder-480b-a35b-instruct',
   'gpt-oss-120b': 'openai/gpt-oss-120b',
   'kimi-k2.6': 'moonshotai/kimi-k2.6',
-  'deepseek-v4-flash': 'deepseek-ai/deepseek-v4-flash',
+  'deepseek-v4-flash': 'deepseek-ai/deepseek-v4-flash-0731',
   'deepseek-v4-pro': 'deepseek-ai/deepseek-v4-pro',
   'minimax-m3': 'minimaxai/minimax-m3',
   'minimax-m2.7': 'minimaxai/minimax-m2.7',
@@ -37,7 +37,7 @@ const MODEL_MAPPING = {
 // Add/remove entries here as you test which models need it - no more flipping a global switch.
 const THINKING_MODELS = new Set([
   'deepseek-ai/deepseek-v4-pro',
-  'deepseek-ai/deepseek-v4-flash'
+  'deepseek-ai/deepseek-v4-flash-0731'
 ]);
 
 // Per-model max_tokens fallback (used only when Chub doesn't send its own max_tokens).
