@@ -27,7 +27,7 @@ const MODEL_MAPPING = {
   'gpt-oss-120b': 'openai/gpt-oss-120b',
   'kimi-k2.6': 'moonshotai/kimi-k2.6',
   'deepseek-v4-flash': 'deepseek-ai/deepseek-v4-flash-0731',
-  'deepseek-v4-pro': 'deepseek-ai/deepseek-v4-pro',
+  'deepseek-v4-pro': 'deepseek-ai/deepseek-v4-pro-0813',
   'minimax-m3': 'minimaxai/minimax-m3',
   'step-3.7-flash': 'stepfun-ai/step-3.7-flash',
   'glm-5.2': 'z-ai/glm-5.2'
@@ -36,7 +36,7 @@ const MODEL_MAPPING = {
 // Models (by their actual NIM model ID) that require chat_template_kwargs thinking flags.
 // Add/remove entries here as you test which models need it - no more flipping a global switch.
 const THINKING_MODELS = new Set([
-  'deepseek-ai/deepseek-v4-pro',
+  'deepseek-ai/deepseek-v4-pro-0813',
   'deepseek-ai/deepseek-v4-flash-0731'
 ]);
 
