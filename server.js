@@ -25,7 +25,7 @@ const MODEL_MAPPING = {
   'gpt-3.5-turbo': 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
   'gpt-4': 'qwen/qwen3-coder-480b-a35b-instruct',
   'gpt-oss-120b': 'openai/gpt-oss-120b',
-  'kimi-k2.6': 'moonshotai/kimi-k2.6',
+  'kimi-k3': 'moonshotai/kimi-k3',
   'deepseek-v4-flash': 'deepseek-ai/deepseek-v4-flash-0731',
   'deepseek-v4-pro': 'deepseek-ai/deepseek-v4-pro-0813',
   'minimax-m3': 'minimaxai/minimax-m3',
